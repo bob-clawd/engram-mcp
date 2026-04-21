@@ -1,0 +1,19 @@
+{
+  "memories": [
+    {
+      "id": "mknown1",
+      "text": "Stable fact",
+      "retention": 10
+    },
+    {
+      "id": "mknown2",
+      "text": "Temporary checkpoint",
+      "retention": 5
+    },
+    {
+      "id": "mknown3",
+      "text": "Expired entry",
+      "retention": 0.9
+    }
+  ]
+}
