@@ -1,0 +1,14 @@
+{
+  "memories": [
+    {
+      "id": "anchor",
+      "text": "Anchor memory",
+      "retention": 9.9
+    },
+    {
+      "id": "temp",
+      "text": "Borderline memory",
+      "retention": 1
+    }
+  ]
+}

@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 pub struct PersistedMemory {
     pub id: String,
     pub text: String,
+    #[serde(serialize_with = "serialize_retention")]
     pub retention: f64,
 }
 
@@ -226,6 +227,17 @@ pub fn require_valid_memory_text(text: &str) -> Result<String> {
     Ok(text.to_string())
 }
 
+fn serialize_retention<S>(retention: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if retention.fract() == 0.0 {
+        return serializer.serialize_i64(*retention as i64);
+    }
+
+    serializer.serialize_f64(*retention)
+}
+
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
@@ -264,6 +276,7 @@ mod tests {
         let content = tokio::fs::read_to_string(&file).await.unwrap();
         assert!(content.contains("Durable fact"));
         assert!(content.contains("\"id\": \"260329142501\""));
+        assert!(content.contains("\"retention\": 10\n"));
     }
 
     #[tokio::test]
@@ -292,5 +305,24 @@ mod tests {
         assert_eq!(document.memories[0].id, "260329142501");
         assert_eq!(document.memories[0].text, "Remember project detail");
         assert_eq!(document.memories[0].retention, 10.0);
+    }
+
+    #[test]
+    fn serialize_retention_keeps_fraction_only_when_needed() {
+        let whole_number = serde_json::to_string(&PersistedMemory {
+            id: "id-1".to_string(),
+            text: "Whole".to_string(),
+            retention: 5.0,
+        })
+        .unwrap();
+        let fractional_number = serde_json::to_string(&PersistedMemory {
+            id: "id-2".to_string(),
+            text: "Fraction".to_string(),
+            retention: 9.9,
+        })
+        .unwrap();
+
+        assert!(whole_number.contains("\"retention\":5"));
+        assert!(fractional_number.contains("\"retention\":9.9"));
     }
 }
