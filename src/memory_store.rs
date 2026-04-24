@@ -68,14 +68,16 @@ impl JsonMemoryStore {
             .parent()
             .context("Memory file path has no parent directory.")?;
 
-        std::fs::create_dir_all(directory_path).with_context(|| {
-            format!(
-                "Memory file path '{}' could not be initialized.",
-                self.state.file_path.display()
-            )
-        })?;
+        tokio::fs::create_dir_all(directory_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "Memory file path '{}' could not be initialized.",
+                    self.state.file_path.display()
+                )
+            })?;
 
-        if !self.state.file_path.exists() {
+        if !tokio::fs::try_exists(&self.state.file_path).await? {
             let empty_document = PersistedMemoryDocument::default();
             self.save_inner(&empty_document).await?;
         }
@@ -117,15 +119,29 @@ impl JsonMemoryStore {
             .parent()
             .context("Memory file path has no parent directory.")?;
 
-        std::fs::create_dir_all(directory_path).with_context(|| {
-            format!(
-                "Memory file path '{}' could not be initialized.",
-                self.state.file_path.display()
-            )
-        })?;
+        tokio::fs::create_dir_all(directory_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "Memory file path '{}' could not be initialized.",
+                    self.state.file_path.display()
+                )
+            })?;
 
         let json = serde_json::to_string_pretty(&normalized_document)?;
-        tokio::fs::write(&self.state.file_path, json)
+
+        // Avoid partially-written JSON on crash: write temp file next to destination, then rename.
+        let tmp_path = self.state.file_path.with_extension("json.tmp");
+        tokio::fs::write(&tmp_path, json).await.with_context(|| {
+            format!("Memory file '{}' could not be written.", tmp_path.display())
+        })?;
+
+        // Windows rename fails if destination exists.
+        if tokio::fs::try_exists(&self.state.file_path).await? {
+            let _ = tokio::fs::remove_file(&self.state.file_path).await;
+        }
+
+        tokio::fs::rename(&tmp_path, &self.state.file_path)
             .await
             .with_context(|| {
                 format!(
